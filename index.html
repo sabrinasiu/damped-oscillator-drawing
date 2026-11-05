@@ -110,10 +110,9 @@
   #cursor.drawing .label {
     display: none;
   }
-  /* Near the board's edge (or dragging it) the native grab hand replaces the square */
-  #cursor.near .dot,
-  #cursor.grabbing .dot {
-    display: none;
+  @media (hover: none) {
+    #cursor { display: none; }
+    canvas#board { cursor: auto; }
   }
 
   .controls {
@@ -380,12 +379,12 @@
   function resize() {
     CW = window.innerWidth;
     CH = window.innerHeight;
-    // Board is about 90% of viewport
+    // Board is about 40% of viewport
     const aspect = 4 / 3;
-    const targetW = CW * 0.9;
+    const targetW = CW * 0.75;
     const targetH = targetW / aspect;
-    if (targetH > CH * 0.9) {
-      H = Math.floor(CH * 0.9);
+    if (targetH > CH * 0.75) {
+      H = Math.floor(CH * 0.75);
       W = Math.floor(H * aspect);
     } else {
       W = Math.floor(targetW);
@@ -583,10 +582,7 @@
       textStampCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
       textStampCtx.font = `700 ${fs}px 'DM Sans', sans-serif`;
       textStampCtx.fillStyle = fg;
-      // Center the glyphs' ink (not the advance box) in the text element
-      const m = textStampCtx.measureText('PENDULOOM');
-      const inkX = txtX + hr.width / 2 - (m.actualBoundingBoxRight - m.actualBoundingBoxLeft) / 2;
-      textStampCtx.fillText('PENDULOOM', inkX, txtY + fs * 0.82);
+      textStampCtx.fillText('PENDULOOM', txtX, txtY + fs * 0.82);
 
       // 1) Cut text shape out of board (any opaque pixel cuts)
       ctx.save();
@@ -625,19 +621,6 @@
     return false;
   }
 
-  // How far outside the board's edge the grab hand appears
-  const GRAB_MARGIN = 48;
-
-  // Signed distance from a board-space point to the rounded board edge:
-  // negative inside, positive outside.
-  function boardDistance(bx, by) {
-    const r = 60;
-    const qx = Math.abs(bx - W / 2) - (W / 2 - r);
-    const qy = Math.abs(by - H / 2) - (H / 2 - r);
-    const ox = Math.max(qx, 0), oy = Math.max(qy, 0);
-    return Math.sqrt(ox * ox + oy * oy) + Math.min(Math.max(qx, qy), 0) - r;
-  }
-
   function onPointerDown(e) {
     if (e.button && e.button !== 0) return;
     canvas.setPointerCapture(e.pointerId);
@@ -648,10 +631,8 @@
     const off = boardOffset();
     const bx = penScreenX - rect.left - off.x;
     const by = penScreenY - rect.top - off.y;
-    const d = boardDistance(bx, by);
 
-    if ((d > 0 && d <= GRAB_MARGIN) ||
-        (bx >= 0 && bx <= W && by >= 0 && by <= H && isNearCorner(bx, by))) {
+    if (bx >= 0 && bx <= W && by >= 0 && by <= H && isNearCorner(bx, by)) {
       isDragging = true;
       bvx = 0;
       bvy = 0;
@@ -704,23 +685,19 @@
     cursorEl.style.top = e.clientY + 'px';
   });
 
-  function setCursor(cls, native) {
-    cursorEl.className = cls;
-    canvas.style.cursor = native;
-  }
-
   function updateCursor() {
-    if (isDragging) { setCursor('grabbing', 'grabbing'); return; }
-    if (isDrawing) { setCursor('', 'none'); return; }
+    if (isDrawing || isDragging) {
+      cursorEl.className = '';
+      return;
+    }
     const rect = canvas.getBoundingClientRect();
     const off = boardOffset();
-    const d = boardDistance(penScreenX - rect.left - off.x, penScreenY - rect.top - off.y);
-    if (d <= 0) {
-      setCursor('on-board', 'none');
-    } else if (d <= GRAB_MARGIN) {
-      setCursor('near', 'grab');
+    const bx = penScreenX - rect.left - off.x;
+    const by = penScreenY - rect.top - off.y;
+    if (bx >= 0 && bx <= W && by >= 0 && by <= H) {
+      cursorEl.className = 'on-board';
     } else {
-      setCursor('', 'none');
+      cursorEl.className = '';
     }
   }
 
