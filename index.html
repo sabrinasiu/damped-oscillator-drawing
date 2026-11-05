@@ -85,32 +85,30 @@
     pointer-events: none;
     z-index: 50;
     transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #cursor .dot {
     width: 8px;
     height: 8px;
     background: #000;
-    border-radius: 0;
-    transition: none;
+    flex-shrink: 0;
   }
-  #cursor.on-board {
-    width: auto; height: auto;
-    background: transparent;
-    color: transparent;
+  #cursor .label {
     font-family: 'Space Mono', monospace;
     font-size: 10px;
     letter-spacing: 0.05em;
-    padding: 5px 12px;
-    border-radius: 20px;
+    color: var(--fg);
     white-space: nowrap;
-    transform: translate(12px, 12px);
+    display: none;
+    padding: 2px 4px;
   }
-  #cursor.on-board::after {
-    content: 'click';
+  #cursor.on-board .label {
+    display: block;
   }
-  #cursor.drawing {
-    width: 8px; height: 8px;
-    background: #000;
-    border-radius: 0;
-    padding: 0;
+  #cursor.drawing .label {
+    display: none;
   }
 
   .controls {
@@ -246,7 +244,7 @@
   }
 </style>
 
-<div id="cursor" class="square"></div>
+<div id="cursor"><div class="dot"></div><div class="label">click + hold</div></div>
 <div class="hero-text">PENDULOOM</div>
 
 <div class="canvas-wrap">
@@ -281,9 +279,13 @@
   let maskCanvas, maskCtx;
   let compCanvas, compCtx;
 
-  // DVD-style bounce physics
+  // Bounce physics with drift
   let boardX = 0, boardY = 0;
   let bvx = 1.5, bvy = 1.0;
+  let curvature = 0;
+  let curvePhase = Math.random() * Math.PI * 2;
+  let wavePhaseX = Math.random() * Math.PI * 2;
+  let wavePhaseY = Math.random() * Math.PI * 2;
 
   // Pen state
   let penSize = 12;
@@ -434,15 +436,35 @@
 
   function updatePhysics(dt) {
     const step = Math.min(dt, 0.033);
-    const speed = 50; // pixels per second
-    boardX += bvx * speed * step;
-    boardY += bvy * speed * step;
+    const speed = 50;
 
-    // Bounce off edges
-    if (boardX <= 0) { boardX = 0; bvx = Math.abs(bvx); }
-    if (boardX + W >= CW) { boardX = CW - W; bvx = -Math.abs(bvx); }
-    if (boardY <= 0) { boardY = 0; bvy = Math.abs(bvy); }
-    if (boardY + H >= CH) { boardY = CH - H; bvy = -Math.abs(bvy); }
+    // Gentle rotation of velocity vector for curved paths
+    curvePhase += step * 0.4;
+    curvature = Math.sin(curvePhase) * 0.3 * step;
+    const cos = Math.cos(curvature), sin = Math.sin(curvature);
+    const nvx = bvx * cos - bvy * sin;
+    const nvy = bvx * sin + bvy * cos;
+    bvx = nvx;
+    bvy = nvy;
+
+    // Keep speed consistent
+    const mag = Math.sqrt(bvx * bvx + bvy * bvy);
+    if (mag > 0.01) { bvx /= mag; bvy /= mag; }
+
+    // Sinusoidal wobble on both axes
+    wavePhaseX += step * 1.7;
+    wavePhaseY += step * 2.3;
+    const wobbleX = Math.sin(wavePhaseX) * 30 * step;
+    const wobbleY = Math.sin(wavePhaseY) * 25 * step;
+
+    boardX += bvx * speed * step + wobbleX;
+    boardY += bvy * speed * step + wobbleY;
+
+    // Bounce off edges with slight angle variation
+    if (boardX <= 0) { boardX = 0; bvx = Math.abs(bvx); bvy += (Math.random() - 0.5) * 0.3; }
+    if (boardX + W >= CW) { boardX = CW - W; bvx = -Math.abs(bvx); bvy += (Math.random() - 0.5) * 0.3; }
+    if (boardY <= 0) { boardY = 0; bvy = Math.abs(bvy); bvx += (Math.random() - 0.5) * 0.3; }
+    if (boardY + H >= CH) { boardY = CH - H; bvy = -Math.abs(bvy); bvx += (Math.random() - 0.5) * 0.3; }
   }
 
   function eraseMask(x0, y0, x1, y1) {
@@ -476,19 +498,22 @@
     ctx.save();
     ctx.translate(off.x, off.y);
 
-    // Drop shadow
+    const boardBg = getComputedStyle(document.documentElement).getPropertyValue('--board-bg').trim();
+    const radius = 24;
+
+    // Drop shadow — use board-bg color so no dark fill bleeds through
     ctx.shadowColor = 'rgba(0,0,0,0.25)';
     ctx.shadowBlur = 30;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 8;
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = boardBg;
     ctx.beginPath();
-    ctx.roundRect(0, 0, W, H, 12);
+    ctx.roundRect(0, 0, W, H, radius);
     ctx.fill();
     ctx.shadowColor = 'transparent';
 
     ctx.beginPath();
-    ctx.roundRect(0, 0, W, H, 12);
+    ctx.roundRect(0, 0, W, H, radius);
     ctx.clip();
 
     // Draw the hidden pattern
@@ -522,44 +547,29 @@
     }
 
 
-    // Punch through cursor "click" pill when hovering
-    if (!isDrawing && !isDragging && penScreenX !== 0) {
+
+    // Punch through cursor label rectangle when hovering
+    const labelEl = document.querySelector('#cursor .label');
+    if (!isDrawing && !isDragging && labelEl && labelEl.offsetWidth > 0) {
+      const labelRect = labelEl.getBoundingClientRect();
       const canvasRect = canvas.getBoundingClientRect();
-      const bx = penScreenX - canvasRect.left - off.x;
-      const by = penScreenY - canvasRect.top - off.y;
-      if (bx >= 0 && bx <= W && by >= 0 && by <= H) {
-        const cursorX = bx + 12;
-        const cursorY = by + 12;
+      const lx = labelRect.left - canvasRect.left - off.x;
+      const ly = labelRect.top - canvasRect.top - off.y;
+      const lw = labelRect.width;
+      const lh = labelRect.height;
+      if (lx + lw > 0 && lx < W && ly + lh > 0 && ly < H) {
         compCtx.save();
         compCtx.globalCompositeOperation = 'destination-out';
         compCtx.fillStyle = 'rgba(255,255,255,1)';
-        // Pill shape
         compCtx.beginPath();
-        compCtx.roundRect(cursorX, cursorY - 12, 42, 24, 20);
+        compCtx.roundRect(lx - 4, ly - 2, lw + 8, lh + 4, 2);
         compCtx.fill();
         compCtx.restore();
-        // Draw "click" text inside the punched area (on main ctx after mask)
       }
     }
 
     // Draw composited mask on top of pattern
     ctx.drawImage(compCanvas, 0, 0, compCanvas.width, compCanvas.height, 0, 0, W, H);
-
-    // Draw "click" label text on the revealed pattern area
-    if (!isDrawing && !isDragging && penScreenX !== 0) {
-      const canvasRect = canvas.getBoundingClientRect();
-      const bx = penScreenX - canvasRect.left - off.x;
-      const by = penScreenY - canvasRect.top - off.y;
-      if (bx >= 0 && bx <= W && by >= 0 && by <= H) {
-        ctx.save();
-        ctx.globalCompositeOperation = 'source-atop';
-        ctx.font = `400 10px 'Space Mono', monospace`;
-        ctx.fillStyle = '#fff';
-        ctx.letterSpacing = '0.05em';
-        ctx.fillText('click', bx + 18, by + 16);
-        ctx.restore();
-      }
-    }
 
     ctx.restore();
   }
@@ -641,7 +651,7 @@
 
   function updateCursor() {
     if (isDrawing || isDragging) {
-      cursorEl.className = 'drawing';
+      cursorEl.className = '';
       return;
     }
     const rect = canvas.getBoundingClientRect();
