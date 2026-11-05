@@ -278,6 +278,7 @@
   let patternCanvas, patternCtx;
   let maskCanvas, maskCtx;
   let compCanvas, compCtx;
+  let textStamp, textStampCtx;
 
   // Bounce physics with drift
   let boardX = 0, boardY = 0;
@@ -530,22 +531,6 @@
     compCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
     compCtx.drawImage(maskCanvas, 0, 0, maskCanvas.width, maskCanvas.height, 0, 0, W, H);
 
-    // Punch through text
-    const heroEl = document.querySelector('.hero-text');
-    if (heroEl) {
-      const heroRect = heroEl.getBoundingClientRect();
-      const canvasRect = canvas.getBoundingClientRect();
-      const fontSize = parseFloat(getComputedStyle(heroEl).fontSize);
-      const tx = heroRect.left - canvasRect.left - off.x;
-      const ty = heroRect.top - canvasRect.top - off.y;
-      compCtx.save();
-      compCtx.globalCompositeOperation = 'destination-out';
-      compCtx.fillStyle = 'rgba(255,255,255,1)';
-      compCtx.font = `700 ${fontSize}px 'DM Sans', sans-serif`;
-      compCtx.letterSpacing = '-0.03em';
-      compCtx.fillText('PENDULOOM', tx, ty + fontSize * 0.82);
-      compCtx.restore();
-    }
 
 
 
@@ -574,25 +559,35 @@
 
     ctx.restore();
 
-    // Draw PENDULOOM: text visible everywhere, reveals image where board overlaps
+    // Draw PENDULOOM: reveals image where board overlaps, normal text elsewhere
     const heroText = document.querySelector('.hero-text');
     if (heroText) {
       const hr = heroText.getBoundingClientRect();
       const cr = canvas.getBoundingClientRect();
       const fs = parseFloat(getComputedStyle(heroText).fontSize);
       const txtX = hr.left - cr.left;
-      const txtY = hr.top - cr.top + fs * 0.82;
+      const txtY = hr.top - cr.top;
       const fg = getComputedStyle(document.documentElement).getPropertyValue('--fg').trim();
 
-      // 1) Cut text shape out of whatever is on canvas (board + background)
+      // Create text stamp canvas (white text on transparent)
+      if (!textStamp) {
+        textStamp = document.createElement('canvas');
+        textStampCtx = textStamp.getContext('2d');
+      }
+      textStamp.width = CW * devicePixelRatio;
+      textStamp.height = CH * devicePixelRatio;
+      textStampCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+      textStampCtx.font = `700 ${fs}px 'DM Sans', sans-serif`;
+      textStampCtx.fillStyle = '#fff';
+      textStampCtx.fillText('PENDULOOM', txtX, txtY + fs * 0.82);
+
+      // 1) Cut text shape out of board
       ctx.save();
       ctx.globalCompositeOperation = 'destination-out';
-      ctx.font = `700 ${fs}px 'DM Sans', sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,1)';
-      ctx.fillText('PENDULOOM', txtX, txtY);
+      ctx.drawImage(textStamp, 0, 0, textStamp.width, textStamp.height, 0, 0, CW, CH);
       ctx.restore();
 
-      // 2) Draw pattern into the text-shaped holes (only where board overlaps)
+      // 2) Fill pattern into the holes (only where board was)
       ctx.save();
       ctx.globalCompositeOperation = 'destination-over';
       ctx.translate(off.x, off.y);
@@ -602,12 +597,14 @@
       ctx.drawImage(patternCanvas, 0, 0, patternCanvas.width, patternCanvas.height, 0, 0, W, H);
       ctx.restore();
 
-      // 3) Draw normal text behind everything (visible where no board)
+      // 3) Draw normal text behind (visible where no board)
+      textStampCtx.clearRect(0, 0, CW, CH);
+      textStampCtx.font = `700 ${fs}px 'DM Sans', sans-serif`;
+      textStampCtx.fillStyle = fg;
+      textStampCtx.fillText('PENDULOOM', txtX, txtY + fs * 0.82);
       ctx.save();
       ctx.globalCompositeOperation = 'destination-over';
-      ctx.font = `700 ${fs}px 'DM Sans', sans-serif`;
-      ctx.fillStyle = fg;
-      ctx.fillText('PENDULOOM', txtX, txtY);
+      ctx.drawImage(textStamp, 0, 0, textStamp.width, textStamp.height, 0, 0, CW, CH);
       ctx.restore();
     }
   }
