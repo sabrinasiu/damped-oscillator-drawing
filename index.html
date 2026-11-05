@@ -281,13 +281,9 @@
   let maskCanvas, maskCtx;
   let compCanvas, compCtx;
 
-  // Board physics
-  let angleX = 0, angleY = 0;
-  let velX = 0, velY = 0;
-  const damping = 0.9992;
-  const gravityX = 0.8;
-  const gravityY = 1.1;
-  const maxAngle = 0.6;
+  // DVD-style bounce physics
+  let boardX = 0, boardY = 0;
+  let bvx = 1.5, bvy = 1.0;
 
   // Pen state
   let penSize = 12;
@@ -379,10 +375,10 @@
     CH = window.innerHeight;
     // Board is about 40% of viewport
     const aspect = 4 / 3;
-    const targetW = CW * 0.6;
+    const targetW = CW * 0.9;
     const targetH = targetW / aspect;
-    if (targetH > CH * 0.6) {
-      H = Math.floor(CH * 0.6);
+    if (targetH > CH * 0.9) {
+      H = Math.floor(CH * 0.9);
       W = Math.floor(H * aspect);
     } else {
       W = Math.floor(targetW);
@@ -427,33 +423,26 @@
     }
   }
 
-  function boardOffset() {
-    const restX = (CW - W) / 2;
-    const restY = (CH - H) / 2;
-    return {
-      x: restX + Math.sin(angleX) * CW * 0.8,
-      y: restY + Math.sin(angleY) * CH * 0.8
-    };
+  function initBoardPos() {
+    boardX = (CW - W) / 2;
+    boardY = (CH - H) / 2;
   }
 
-  // Ambient drift — keeps the board gently floating
-  let driftPhaseX = Math.random() * Math.PI * 2;
-  let driftPhaseY = Math.random() * Math.PI * 2;
+  function boardOffset() {
+    return { x: boardX, y: boardY };
+  }
 
   function updatePhysics(dt) {
     const step = Math.min(dt, 0.033);
-    driftPhaseX += step * 0.35;
-    driftPhaseY += step * 0.25;
-    velX += Math.sin(driftPhaseX) * 0.006;
-    velY += Math.cos(driftPhaseY) * 0.005;
-    velX += -gravityX * angleX * step;
-    velY += -gravityY * angleY * step;
-    velX *= Math.pow(damping, step * 60);
-    velY *= Math.pow(damping, step * 60);
-    angleX += velX * step;
-    angleY += velY * step;
-    angleX = Math.max(-maxAngle, Math.min(maxAngle, angleX));
-    angleY = Math.max(-maxAngle, Math.min(maxAngle, angleY));
+    const speed = 50; // pixels per second
+    boardX += bvx * speed * step;
+    boardY += bvy * speed * step;
+
+    // Bounce off edges
+    if (boardX <= 0) { boardX = 0; bvx = Math.abs(bvx); }
+    if (boardX + W >= CW) { boardX = CW - W; bvx = -Math.abs(bvx); }
+    if (boardY <= 0) { boardY = 0; bvy = Math.abs(bvy); }
+    if (boardY + H >= CH) { boardY = CH - H; bvy = -Math.abs(bvy); }
   }
 
   function eraseMask(x0, y0, x1, y1) {
@@ -599,8 +588,8 @@
 
     if (bx >= 0 && bx <= W && by >= 0 && by <= H && isNearCorner(bx, by)) {
       isDragging = true;
-      velX = 0;
-      velY = 0;
+      bvx = 0;
+      bvy = 0;
     } else {
       isDrawing = true;
       lastDrawX = bx;
@@ -615,19 +604,19 @@
     penScreenY = e.clientY;
 
     if (isDragging) {
-      const dx = (penScreenX - prevX) / W;
-      const dy = (penScreenY - prevY) / H;
-      angleX += dx * 0.6;
-      angleY += dy * 0.6;
-      angleX = Math.max(-maxAngle, Math.min(maxAngle, angleX));
-      angleY = Math.max(-maxAngle, Math.min(maxAngle, angleY));
+      boardX += penScreenX - prevX;
+      boardY += penScreenY - prevY;
     }
   }
 
   function onPointerUp(e) {
     if (isDragging) {
-      velX = cursorVelX * 0.012;
-      velY = cursorVelY * 0.012;
+      bvx = cursorVelX * 0.05;
+      bvy = cursorVelY * 0.05;
+      // Normalize so speed stays consistent
+      const mag = Math.sqrt(bvx * bvx + bvy * bvy);
+      if (mag > 0.1) { bvx /= mag; bvy /= mag; }
+      else { bvx = 1.2; bvy = 0.8; }
       isDragging = false;
     }
     isDrawing = false;
@@ -699,6 +688,7 @@
     await loadManifest();
     currentImage = await loadRandomImage();
     resize();
+    initBoardPos();
     window.addEventListener('resize', resize);
     requestAnimationFrame(loop);
   }
