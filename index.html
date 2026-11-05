@@ -193,12 +193,6 @@
     <input type="range" id="penSize" min="1" max="8" value="2">
   </div>
 
-  <div class="corner-btns">
-    <button class="corner-btn" data-corner="tl">&#8598; Top-L</button>
-    <button class="corner-btn" data-corner="tr">&#8599; Top-R</button>
-    <button class="corner-btn" data-corner="bl">&#8601; Bot-L</button>
-    <button class="corner-btn" data-corner="br">&#8600; Bot-R</button>
-  </div>
 
   <button class="action-btn" id="clearBtn">Clear</button>
 </div>
@@ -227,6 +221,7 @@
   let penColor = '#1a1a1f';
   let penSize = 2;
   let isDrawing = false;
+  let isDragging = false;
   let lastDrawX = null, lastDrawY = null;
 
   function resize() {
@@ -350,29 +345,65 @@
   }
 
   // Pen interaction
+  function isNearCorner(bx, by) {
+    const zone = Math.min(W, H) * 0.2;
+    const corners = [[0,0],[W,0],[0,H],[W,H]];
+    for (const [cx, cy] of corners) {
+      const dx = bx - cx, dy = by - cy;
+      if (dx * dx + dy * dy < zone * zone) return true;
+    }
+    return false;
+  }
+
   function onPointerDown(e) {
     if (e.button !== 0) return;
-    isDrawing = true;
-    canvas.style.cursor = 'crosshair';
     canvas.setPointerCapture(e.pointerId);
     penScreenX = e.clientX;
     penScreenY = e.clientY;
+
     const rect = canvas.getBoundingClientRect();
     const off = boardOffset();
-    lastDrawX = penScreenX - rect.left - off.x;
-    lastDrawY = penScreenY - rect.top - off.y;
-    drawCtx.fillStyle = penColor;
-    drawCtx.beginPath();
-    drawCtx.arc(lastDrawX, lastDrawY, penSize / 2, 0, Math.PI * 2);
-    drawCtx.fill();
+    const bx = penScreenX - rect.left - off.x;
+    const by = penScreenY - rect.top - off.y;
+
+    if (bx >= 0 && bx <= W && by >= 0 && by <= H && isNearCorner(bx, by)) {
+      isDragging = true;
+      canvas.style.cursor = 'grabbing';
+      velX = 0;
+      velY = 0;
+    } else {
+      isDrawing = true;
+      canvas.style.cursor = 'crosshair';
+      lastDrawX = bx;
+      lastDrawY = by;
+      drawCtx.fillStyle = penColor;
+      drawCtx.beginPath();
+      drawCtx.arc(bx, by, penSize / 2, 0, Math.PI * 2);
+      drawCtx.fill();
+    }
   }
 
   function onPointerMove(e) {
+    const prevX = penScreenX, prevY = penScreenY;
     penScreenX = e.clientX;
     penScreenY = e.clientY;
+
+    if (isDragging) {
+      const dx = (penScreenX - prevX) / W;
+      const dy = (penScreenY - prevY) / H;
+      angleX += dx * 0.6;
+      angleY += dy * 0.6;
+      angleX = Math.max(-maxAngle, Math.min(maxAngle, angleX));
+      angleY = Math.max(-maxAngle, Math.min(maxAngle, angleY));
+    }
   }
 
   function onPointerUp(e) {
+    if (isDragging) {
+      velX = cursorVelX * 0.012;
+      velY = cursorVelY * 0.012;
+      isDragging = false;
+    }
     isDrawing = false;
     canvas.style.cursor = 'grab';
     lastDrawX = null;
@@ -396,6 +427,8 @@
   canvas.addEventListener('pointercancel', onPointerUp);
 
   let penScreenX = 0, penScreenY = 0;
+  let prevScreenX = 0, prevScreenY = 0;
+  let cursorVelX = 0, cursorVelY = 0;
 
   // Color buttons
   document.querySelectorAll('.color-btn').forEach(btn => {
@@ -428,23 +461,12 @@
     const dt = (now - lastTime) / 1000;
     lastTime = now;
 
-    // Cursor push: when cursor overlaps the board (without clicking), push it away
-    if (!isDrawing && penScreenX !== 0) {
-      const rect = canvas.getBoundingClientRect();
-      const off = boardOffset();
-      const bx = penScreenX - rect.left - off.x;
-      const by = penScreenY - rect.top - off.y;
-      if (bx >= 0 && bx <= W && by >= 0 && by <= H) {
-        // Cursor is inside the board — push away from cursor position
-        const cx = bx / W - 0.5; // -0.5 to 0.5
-        const cy = by / H - 0.5;
-        const pushStrength = 0.008;
-        velX += cx * pushStrength;
-        velY += cy * pushStrength;
-      }
-    }
+    cursorVelX = penScreenX - prevScreenX;
+    cursorVelY = penScreenY - prevScreenY;
+    prevScreenX = penScreenX;
+    prevScreenY = penScreenY;
 
-    updatePhysics(dt);
+    if (!isDragging) updatePhysics(dt);
     const offAfter = boardOffset();
 
     if (isDrawing && lastDrawX !== null) {
