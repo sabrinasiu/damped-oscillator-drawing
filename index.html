@@ -229,9 +229,9 @@
     line-height: 1;
     letter-spacing: -0.03em;
     width: calc(100vw - max(16px, env(safe-area-inset-left, 0px)) - max(16px, env(safe-area-inset-right, 0px)));
-    color: var(--fg);
+    color: transparent;
     pointer-events: none;
-    z-index: 2;
+    z-index: 0;
     white-space: nowrap;
   }
 
@@ -571,6 +571,23 @@
     ctx.drawImage(compCanvas, 0, 0, compCanvas.width, compCanvas.height, 0, 0, W, H);
 
     ctx.restore();
+
+    // Draw PENDULOOM text on the main canvas (visible everywhere, punch-through where board overlaps)
+    const heroEl2 = document.querySelector('.hero-text');
+    if (heroEl2) {
+      const heroRect2 = heroEl2.getBoundingClientRect();
+      const canvasRect2 = canvas.getBoundingClientRect();
+      const fontSize2 = parseFloat(getComputedStyle(heroEl2).fontSize);
+      const tx2 = heroRect2.left - canvasRect2.left;
+      const ty2 = heroRect2.top - canvasRect2.top;
+      const fg = getComputedStyle(document.documentElement).getPropertyValue('--fg').trim();
+      ctx.save();
+      ctx.font = `700 ${fontSize2}px 'DM Sans', sans-serif`;
+      ctx.letterSpacing = '-0.03em';
+      ctx.fillStyle = fg;
+      ctx.fillText('PENDULOOM', tx2, ty2 + fontSize2 * 0.82);
+      ctx.restore();
+    }
   }
 
   // Interaction
