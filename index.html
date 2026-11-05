@@ -1,4 +1,4 @@
-<title>Pendulum Board</title>
+<title>Penduloom</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap">
 <style>
@@ -85,37 +85,32 @@
     pointer-events: none;
     z-index: 50;
     transform: translate(-50%, -50%);
-    transition: width 0.1s, height 0.1s, border-radius 0.1s;
+    width: 8px;
+    height: 8px;
+    background: #000;
+    border-radius: 0;
+    transition: none;
   }
-  #cursor.square {
-    width: 16px; height: 16px;
-    border: none;
-    border-radius: 2px;
-    background: var(--fg);
-  }
-  #cursor.hand {
+  #cursor.on-board {
     width: auto; height: auto;
-    border: none;
-    border-radius: 20px;
-    background: var(--fg);
-    color: var(--bg);
+    background: transparent;
+    color: transparent;
     font-family: 'Space Mono', monospace;
     font-size: 10px;
     letter-spacing: 0.05em;
-    padding: 6px 14px;
+    padding: 5px 12px;
+    border-radius: 20px;
     white-space: nowrap;
     transform: translate(12px, 12px);
   }
-  #cursor.hand::after {
+  #cursor.on-board::after {
     content: 'click';
   }
-  #cursor.dot {
+  #cursor.drawing {
     width: 8px; height: 8px;
-    border: none;
-    border-radius: 50%;
-    background: var(--fg);
+    background: #000;
+    border-radius: 0;
     padding: 0;
-    transform: translate(-50%, -50%);
   }
 
   .controls {
@@ -227,19 +222,19 @@
 
   .hero-text {
     position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    bottom: max(16px, env(safe-area-inset-bottom, 0px));
+    left: max(16px, env(safe-area-inset-left, 0px));
+    right: max(16px, env(safe-area-inset-right, 0px));
     font-family: 'DM Sans', sans-serif;
     font-weight: 700;
-    font-size: clamp(60px, 15vw, 200px);
-    line-height: 0.85;
+    font-size: 18vw;
+    line-height: 1;
     letter-spacing: -0.03em;
     color: var(--fg);
-    padding-left: max(16px, env(safe-area-inset-left, 0px));
-    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
     pointer-events: none;
     z-index: 0;
+    white-space: nowrap;
+    overflow: hidden;
   }
 
   .hint {
@@ -252,8 +247,7 @@
 </style>
 
 <div id="cursor" class="square"></div>
-<div class="header">Pendulum Board</div>
-<div class="hero-text">HARMONODRAW</div>
+<div class="hero-text">PENDULOOM</div>
 
 <div class="canvas-wrap">
   <canvas id="board"></canvas>
@@ -328,42 +322,29 @@
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
   }
 
-  const washColors = ['#3b5323', '#e36356', '#6b8fa3', '#d4c953'];
+  const washColors = ['#e84393', '#6c5ce7', '#00b894', '#fdcb6e', '#e17055', '#74b9ff'];
 
   function generatePattern() {
     if (currentImage) {
       drawImageCover(patternCtx, currentImage, W, H);
       return;
     }
-    // Generative color wash using the four palette colors
-    patternCtx.fillStyle = '#f4f1e8';
+    // Vivid generative pattern
+    const grad = patternCtx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, '#1a0533');
+    grad.addColorStop(0.5, '#0d1b3e');
+    grad.addColorStop(1, '#1a3a2a');
+    patternCtx.fillStyle = grad;
     patternCtx.fillRect(0, 0, W, H);
 
-    // Large soft blobs
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 25; i++) {
       const x = Math.random() * W;
       const y = Math.random() * H;
-      const r = 60 + Math.random() * Math.min(W, H) * 0.5;
+      const r = 40 + Math.random() * Math.min(W, H) * 0.4;
       const g = patternCtx.createRadialGradient(x, y, 0, x, y, r);
-      const c = washColors[i % 4];
-      g.addColorStop(0, c + '66');
-      g.addColorStop(0.5, c + '30');
-      g.addColorStop(1, 'transparent');
-      patternCtx.fillStyle = g;
-      patternCtx.beginPath();
-      patternCtx.arc(x, y, r, 0, Math.PI * 2);
-      patternCtx.fill();
-    }
-
-    // Second pass for depth
-    for (let i = 0; i < 20; i++) {
-      const x = Math.random() * W;
-      const y = Math.random() * H;
-      const r = 40 + Math.random() * Math.min(W, H) * 0.35;
-      const g = patternCtx.createRadialGradient(x, y, 0, x, y, r);
-      const c = washColors[Math.floor(Math.random() * 2)];
-      g.addColorStop(0, c + '77');
-      g.addColorStop(0.6, c + '33');
+      const c = washColors[i % washColors.length];
+      g.addColorStop(0, c + 'cc');
+      g.addColorStop(0.5, c + '55');
       g.addColorStop(1, 'transparent');
       patternCtx.fillStyle = g;
       patternCtx.beginPath();
@@ -443,8 +424,8 @@
     const step = Math.min(dt, 0.033);
     driftPhaseX += step * 0.7;
     driftPhaseY += step * 0.5;
-    velX += Math.sin(driftPhaseX) * 0.0004;
-    velY += Math.cos(driftPhaseY) * 0.0003;
+    velX += Math.sin(driftPhaseX) * 0.003;
+    velY += Math.cos(driftPhaseY) * 0.0025;
     velX += -gravityX * angleX * step;
     velY += -gravityY * angleY * step;
     velX *= Math.pow(damping, step * 60);
@@ -519,39 +500,57 @@
     if (heroEl) {
       const heroRect = heroEl.getBoundingClientRect();
       const canvasRect = canvas.getBoundingClientRect();
-      const textX = heroRect.left - canvasRect.left - off.x;
-      const textY = heroRect.top - canvasRect.top - off.y;
       const fontSize = parseFloat(getComputedStyle(heroEl).fontSize);
+      const tx = heroRect.left - canvasRect.left - off.x;
+      const ty = heroRect.top - canvasRect.top - off.y;
       compCtx.save();
       compCtx.globalCompositeOperation = 'destination-out';
+      compCtx.fillStyle = 'rgba(255,255,255,1)';
       compCtx.font = `700 ${fontSize}px 'DM Sans', sans-serif`;
       compCtx.letterSpacing = '-0.03em';
-      compCtx.fillStyle = 'rgba(255,255,255,1)';
-      compCtx.fillText('HARMONODRAW', textX, textY + fontSize * 0.82);
+      compCtx.fillText('PENDULOOM', tx, ty + fontSize * 0.82);
       compCtx.restore();
     }
 
-    // Punch through cursor pill
+
+    // Punch through cursor "click" pill when hovering
     if (!isDrawing && !isDragging && penScreenX !== 0) {
       const canvasRect = canvas.getBoundingClientRect();
-      const cursorX = penScreenX - canvasRect.left - off.x + 12;
-      const cursorY = penScreenY - canvasRect.top - off.y + 12;
       const bx = penScreenX - canvasRect.left - off.x;
       const by = penScreenY - canvasRect.top - off.y;
-      if (bx >= -60 && bx <= W + 60 && by >= -60 && by <= H + 60) {
+      if (bx >= 0 && bx <= W && by >= 0 && by <= H) {
+        const cursorX = bx + 12;
+        const cursorY = by + 12;
         compCtx.save();
         compCtx.globalCompositeOperation = 'destination-out';
         compCtx.fillStyle = 'rgba(255,255,255,1)';
-        const pw = 64, ph = 24;
+        // Pill shape
         compCtx.beginPath();
-        compCtx.roundRect(cursorX, cursorY - ph / 2 + 2, pw, ph, 20);
+        compCtx.roundRect(cursorX, cursorY - 12, 42, 24, 20);
         compCtx.fill();
         compCtx.restore();
+        // Draw "click" text inside the punched area (on main ctx after mask)
       }
     }
 
     // Draw composited mask on top of pattern
     ctx.drawImage(compCanvas, 0, 0, compCanvas.width, compCanvas.height, 0, 0, W, H);
+
+    // Draw "click" label text on the revealed pattern area
+    if (!isDrawing && !isDragging && penScreenX !== 0) {
+      const canvasRect = canvas.getBoundingClientRect();
+      const bx = penScreenX - canvasRect.left - off.x;
+      const by = penScreenY - canvasRect.top - off.y;
+      if (bx >= 0 && bx <= W && by >= 0 && by <= H) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.font = `400 10px 'Space Mono', monospace`;
+        ctx.fillStyle = '#fff';
+        ctx.letterSpacing = '0.05em';
+        ctx.fillText('click', bx + 18, by + 16);
+        ctx.restore();
+      }
+    }
 
     ctx.restore();
   }
@@ -632,14 +631,8 @@
   });
 
   function updateCursor() {
-    if (isDragging) {
-      cursorEl.className = 'dot';
-      canvas.style.cursor = 'none';
-      return;
-    }
-    if (isDrawing) {
-      cursorEl.className = 'dot';
-      canvas.style.cursor = 'none';
+    if (isDrawing || isDragging) {
+      cursorEl.className = 'drawing';
       return;
     }
     const rect = canvas.getBoundingClientRect();
@@ -647,11 +640,9 @@
     const bx = penScreenX - rect.left - off.x;
     const by = penScreenY - rect.top - off.y;
     if (bx >= 0 && bx <= W && by >= 0 && by <= H) {
-      cursorEl.className = 'hand';
-      canvas.style.cursor = 'none';
+      cursorEl.className = 'on-board';
     } else {
-      cursorEl.className = 'square';
-      canvas.style.cursor = 'none';
+      cursorEl.className = '';
     }
   }
 
