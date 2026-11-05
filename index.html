@@ -675,6 +675,46 @@
   canvas.addEventListener('pointerup', onPointerUp);
   canvas.addEventListener('pointercancel', onPointerUp);
 
+  // Two-finger drag to move the board (mobile)
+  let twoFingerStart = null;
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      isDrawing = false;
+      lastDrawX = null;
+      lastDrawY = null;
+      isDragging = true;
+      bvx = 0;
+      bvy = 0;
+      twoFingerStart = {
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+      };
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && twoFingerStart) {
+      e.preventDefault();
+      const mid = {
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+      };
+      boardX += mid.x - twoFingerStart.x;
+      boardY += mid.y - twoFingerStart.y;
+      twoFingerStart = mid;
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', (e) => {
+    if (twoFingerStart && e.touches.length < 2) {
+      isDragging = false;
+      bvx = 1.0;
+      bvy = 0.7;
+      twoFingerStart = null;
+    }
+  });
+
   let penScreenX = 0, penScreenY = 0;
   let prevScreenX = 0, prevScreenY = 0;
   let cursorVelX = 0, cursorVelY = 0;
