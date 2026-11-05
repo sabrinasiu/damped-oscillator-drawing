@@ -377,10 +377,10 @@
     CH = window.innerHeight;
     // Board is about 40% of viewport
     const aspect = 4 / 3;
-    const targetW = CW * 0.81;
+    const targetW = CW * 0.75;
     const targetH = targetW / aspect;
-    if (targetH > CH * 0.81) {
-      H = Math.floor(CH * 0.81);
+    if (targetH > CH * 0.75) {
+      H = Math.floor(CH * 0.75);
       W = Math.floor(H * aspect);
     } else {
       W = Math.floor(targetW);
