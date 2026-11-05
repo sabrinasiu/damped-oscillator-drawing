@@ -110,6 +110,10 @@
   #cursor.drawing .label {
     display: none;
   }
+  @media (hover: none) {
+    #cursor { display: none; }
+    canvas#board { cursor: auto; }
+  }
 
   .controls {
     position: fixed;
@@ -288,7 +292,7 @@
   let wavePhaseY = Math.random() * Math.PI * 2;
 
   // Pen state
-  let penSize = 12;
+  let penSize = matchMedia('(hover: none)').matches ? 24 : 12;
   let isDrawing = false;
   let isDragging = false;
   let lastDrawX = null, lastDrawY = null;
@@ -605,8 +609,10 @@
   }
 
   // Interaction
+  const isTouch = matchMedia('(hover: none)').matches;
+
   function isNearCorner(bx, by) {
-    const zone = Math.min(W, H) * 0.2;
+    const zone = Math.min(W, H) * (isTouch ? 0.3 : 0.2);
     const corners = [[0,0],[W,0],[0,H],[W,H]];
     for (const [cx, cy] of corners) {
       const dx = bx - cx, dy = by - cy;
@@ -616,7 +622,7 @@
   }
 
   function onPointerDown(e) {
-    if (e.button !== 0) return;
+    if (e.button && e.button !== 0) return;
     canvas.setPointerCapture(e.pointerId);
     penScreenX = e.clientX;
     penScreenY = e.clientY;
