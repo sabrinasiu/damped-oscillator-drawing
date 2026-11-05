@@ -229,9 +229,10 @@
     line-height: 1;
     letter-spacing: -0.03em;
     width: calc(100vw - max(16px, env(safe-area-inset-left, 0px)) - max(16px, env(safe-area-inset-right, 0px)));
-    color: transparent;
+    color: var(--fg);
     pointer-events: none;
     z-index: 0;
+    opacity: 0;
     white-space: nowrap;
   }
 
@@ -493,23 +494,6 @@
   function render() {
     ctx.clearRect(0, 0, CW, CH);
 
-    // Draw PENDULOOM text first (board renders on top, punch-through reveals image)
-    const heroEl2 = document.querySelector('.hero-text');
-    if (heroEl2) {
-      const heroRect2 = heroEl2.getBoundingClientRect();
-      const canvasRect2 = canvas.getBoundingClientRect();
-      const fontSize2 = parseFloat(getComputedStyle(heroEl2).fontSize);
-      const tx2 = heroRect2.left - canvasRect2.left;
-      const ty2 = heroRect2.top - canvasRect2.top;
-      const fg = getComputedStyle(document.documentElement).getPropertyValue('--fg').trim();
-      ctx.save();
-      ctx.font = `700 ${fontSize2}px 'DM Sans', sans-serif`;
-      ctx.letterSpacing = '-0.03em';
-      ctx.fillStyle = fg;
-      ctx.fillText('PENDULOOM', tx2, ty2 + fontSize2 * 0.82);
-      ctx.restore();
-    }
-
     const off = boardOffset();
 
     ctx.save();
@@ -589,6 +573,43 @@
     ctx.drawImage(compCanvas, 0, 0, compCanvas.width, compCanvas.height, 0, 0, W, H);
 
     ctx.restore();
+
+    // Draw PENDULOOM: text visible everywhere, reveals image where board overlaps
+    const heroText = document.querySelector('.hero-text');
+    if (heroText) {
+      const hr = heroText.getBoundingClientRect();
+      const cr = canvas.getBoundingClientRect();
+      const fs = parseFloat(getComputedStyle(heroText).fontSize);
+      const txtX = hr.left - cr.left;
+      const txtY = hr.top - cr.top + fs * 0.82;
+      const fg = getComputedStyle(document.documentElement).getPropertyValue('--fg').trim();
+
+      // 1) Cut text shape out of whatever is on canvas (board + background)
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.font = `700 ${fs}px 'DM Sans', sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,1)';
+      ctx.fillText('PENDULOOM', txtX, txtY);
+      ctx.restore();
+
+      // 2) Draw pattern into the text-shaped holes (only where board overlaps)
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.translate(off.x, off.y);
+      ctx.beginPath();
+      ctx.roundRect(0, 0, W, H, radius);
+      ctx.clip();
+      ctx.drawImage(patternCanvas, 0, 0, patternCanvas.width, patternCanvas.height, 0, 0, W, H);
+      ctx.restore();
+
+      // 3) Draw normal text behind everything (visible where no board)
+      ctx.save();
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.font = `700 ${fs}px 'DM Sans', sans-serif`;
+      ctx.fillStyle = fg;
+      ctx.fillText('PENDULOOM', txtX, txtY);
+      ctx.restore();
+    }
   }
 
   // Interaction
