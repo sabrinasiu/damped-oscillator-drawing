@@ -5,6 +5,8 @@
   /* Layout: full-screen app, board centered, controls docked bottom */
   :root {
     --bg: #0a0a0f;
+    --check-a: #e8a0c8;
+    --check-b: #b5dda4;
     --fg: #e8e6e1;
     --surface: #16161e;
     --border: #2a2a35;
@@ -22,6 +24,8 @@
       --accent: #3d6fd6;
       --muted: #8a8a95;
       --board-bg: #ffffff;
+      --check-a: #e625a3;
+      --check-b: #6fde3c;
       color-scheme: light;
     }
   }
@@ -33,7 +37,17 @@
     --accent: #3d6fd6;
     --muted: #8a8a95;
     --board-bg: #ffffff;
+    --check-a: #e8a0c8;
+    --check-b: #b5dda4;
     color-scheme: light;
+  }
+
+  #bgCanvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
   }
 
   html, body { height: 100%; }
@@ -128,6 +142,7 @@
   }
 </style>
 
+<canvas id="bgCanvas"></canvas>
 <div class="header">Pendulum Board</div>
 
 <div class="canvas-wrap">
@@ -145,6 +160,67 @@
 <div class="hint">Grab a corner to swing the board, click &amp; hold to reveal the hidden image</div>
 
 <script>
+(function() {
+  const bgC = document.getElementById('bgCanvas');
+  const bgX = bgC.getContext('2d');
+
+  const palette = {
+    oil:     '#3b5323',
+    coral:   '#e36356',
+    glaucous:'#6b8fa3',
+    sulphur: '#d4c953'
+  };
+  const colors = Object.values(palette);
+
+  function drawBg() {
+    const w = bgC.width = window.innerWidth * devicePixelRatio;
+    const h = bgC.height = window.innerHeight * devicePixelRatio;
+    bgC.style.width = window.innerWidth + 'px';
+    bgC.style.height = window.innerHeight + 'px';
+    bgX.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    const W = window.innerWidth, H = window.innerHeight;
+
+    // Base wash
+    bgX.fillStyle = '#f4f1e8';
+    bgX.fillRect(0, 0, W, H);
+
+    // Large soft blobs
+    for (let i = 0; i < 12; i++) {
+      const x = Math.random() * W;
+      const y = Math.random() * H;
+      const r = 80 + Math.random() * 250;
+      const g = bgX.createRadialGradient(x, y, 0, x, y, r);
+      const c = colors[i % 4];
+      g.addColorStop(0, c + '55');
+      g.addColorStop(0.6, c + '22');
+      g.addColorStop(1, 'transparent');
+      bgX.fillStyle = g;
+      bgX.beginPath();
+      bgX.arc(x, y, r, 0, Math.PI * 2);
+      bgX.fill();
+    }
+
+    // More overlapping color washes
+    for (let i = 0; i < 18; i++) {
+      const x = Math.random() * W;
+      const y = Math.random() * H;
+      const r = 100 + Math.random() * 350;
+      const g = bgX.createRadialGradient(x, y, 0, x, y, r);
+      const c = colors[Math.floor(Math.random() * 4)];
+      g.addColorStop(0, c + '44');
+      g.addColorStop(0.5, c + '18');
+      g.addColorStop(1, 'transparent');
+      bgX.fillStyle = g;
+      bgX.beginPath();
+      bgX.arc(x, y, r, 0, Math.PI * 2);
+      bgX.fill();
+    }
+  }
+
+  drawBg();
+  window.addEventListener('resize', drawBg);
+})();
+
 (function() {
   const canvas = document.getElementById('board');
   const ctx = canvas.getContext('2d');
