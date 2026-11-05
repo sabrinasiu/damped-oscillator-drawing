@@ -440,7 +440,7 @@
 
   function updatePhysics(dt) {
     const step = Math.min(dt, 0.033);
-    const speed = 120;
+    const speed = Math.max(CW, CH) * 0.12;
 
     // Gentle rotation of velocity vector for curved paths
     curvePhase += step * 0.4;
@@ -459,8 +459,9 @@
     wavePhaseX += step * 1.7;
     wavePhaseY += step * 2.3;
     const portrait = CW < CH;
-    const wobbleX = Math.sin(wavePhaseX) * (portrait ? 20 : 30) * step;
-    const wobbleY = Math.sin(wavePhaseY) * (portrait ? 50 : 25) * step;
+    const vScale = Math.max(CW, CH) * 0.03;
+    const wobbleX = Math.sin(wavePhaseX) * vScale * (portrait ? 0.7 : 1) * step;
+    const wobbleY = Math.sin(wavePhaseY) * vScale * (portrait ? 1.7 : 0.8) * step;
 
     boardX += bvx * speed * step + wobbleX;
     boardY += bvy * speed * step + wobbleY;
