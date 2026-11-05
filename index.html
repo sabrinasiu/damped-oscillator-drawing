@@ -42,14 +42,6 @@
     color-scheme: light;
   }
 
-  #bgCanvas {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    z-index: -1;
-  }
-
   html, body { height: 100%; }
   body {
     background: var(--bg);
@@ -236,7 +228,6 @@
 </style>
 
 <div id="cursor" class="square"></div>
-<canvas id="bgCanvas"></canvas>
 <div class="header">Pendulum Board</div>
 
 <div class="canvas-wrap">
@@ -257,81 +248,6 @@
 </div>
 
 <script>
-(function() {
-  const bgC = document.getElementById('bgCanvas');
-  const bgX = bgC.getContext('2d');
-
-  const palette = {
-    blue:    '#5ea8c8',
-    pink:    '#f5c6c6'
-  };
-  const colors = Object.values(palette);
-
-  function drawBg() {
-    const w = bgC.width = window.innerWidth * devicePixelRatio;
-    const h = bgC.height = window.innerHeight * devicePixelRatio;
-    bgC.style.width = window.innerWidth + 'px';
-    bgC.style.height = window.innerHeight + 'px';
-    bgX.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-    const W = window.innerWidth, H = window.innerHeight;
-
-    // Base wash
-    bgX.fillStyle = '#faf5f3';
-    bgX.fillRect(0, 0, W, H);
-
-    // Irregular blobby shapes
-    function blob(cx, cy, r, color) {
-      const points = 8;
-      const pts = [];
-      for (let i = 0; i < points; i++) {
-        const angle = (i / points) * Math.PI * 2;
-        const vary = r * (0.6 + Math.random() * 0.8);
-        pts.push({ x: cx + Math.cos(angle) * vary, y: cy + Math.sin(angle) * vary });
-      }
-      const g = bgX.createRadialGradient(cx, cy, 0, cx, cy, r * 1.2);
-      g.addColorStop(0, color + '99');
-      g.addColorStop(0.7, color + '44');
-      g.addColorStop(1, color + '00');
-      bgX.fillStyle = g;
-      bgX.beginPath();
-      bgX.moveTo((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
-      for (let i = 0; i < points; i++) {
-        const next = (i + 1) % points;
-        bgX.quadraticCurveTo(pts[next].x, pts[next].y,
-          (pts[next].x + pts[(next + 1) % points].x) / 2,
-          (pts[next].y + pts[(next + 1) % points].y) / 2);
-      }
-      bgX.closePath();
-      bgX.fill();
-    }
-
-    for (let i = 0; i < 10; i++) {
-      blob(
-        Math.random() * W,
-        Math.random() * H,
-        120 + Math.random() * 280,
-        colors[i % 2]
-      );
-    }
-    for (let i = 0; i < 8; i++) {
-      blob(
-        Math.random() * W,
-        Math.random() * H,
-        80 + Math.random() * 200,
-        colors[Math.floor(Math.random() * 2)]
-      );
-    }
-
-    // Blur for soft watercolor edges
-    bgX.filter = 'blur(40px)';
-    bgX.drawImage(bgC, 0, 0, W, H);
-    bgX.filter = 'none';
-  }
-
-  drawBg();
-  window.addEventListener('resize', drawBg);
-})();
-
 (function() {
   const canvas = document.getElementById('board');
   const ctx = canvas.getContext('2d');
@@ -506,8 +422,16 @@
     };
   }
 
+  // Ambient drift — keeps the board gently floating
+  let driftPhaseX = Math.random() * Math.PI * 2;
+  let driftPhaseY = Math.random() * Math.PI * 2;
+
   function updatePhysics(dt) {
     const step = Math.min(dt, 0.033);
+    driftPhaseX += step * 0.7;
+    driftPhaseY += step * 0.5;
+    velX += Math.sin(driftPhaseX) * 0.0004;
+    velY += Math.cos(driftPhaseY) * 0.0003;
     velX += -gravityX * angleX * step;
     velY += -gravityY * angleY * step;
     velX *= Math.pow(damping, step * 60);
