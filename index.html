@@ -227,7 +227,7 @@
     right: max(16px, env(safe-area-inset-right, 0px));
     font-family: 'DM Sans', sans-serif;
     font-weight: 700;
-    font-size: 18vw;
+    font-size: 13vw;
     line-height: 1;
     letter-spacing: -0.03em;
     color: var(--fg);
@@ -269,9 +269,9 @@
   // Board physics
   let angleX = 0, angleY = 0;
   let velX = 0, velY = 0;
-  const damping = 0.9988;
-  const gravityX = 1.4;
-  const gravityY = 2.1;
+  const damping = 0.9992;
+  const gravityX = 0.8;
+  const gravityY = 1.1;
   const maxAngle = 0.6;
 
   // Pen state
@@ -364,10 +364,10 @@
     CH = window.innerHeight;
     // Board is about 40% of viewport
     const aspect = 4 / 3;
-    const targetW = CW * 0.4;
+    const targetW = CW * 0.6;
     const targetH = targetW / aspect;
-    if (targetH > CH * 0.4) {
-      H = Math.floor(CH * 0.4);
+    if (targetH > CH * 0.6) {
+      H = Math.floor(CH * 0.6);
       W = Math.floor(H * aspect);
     } else {
       W = Math.floor(targetW);
@@ -393,15 +393,21 @@
     patternCanvas.height = H * devicePixelRatio;
     patternCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
 
-    const oldMask = needsInit ? null : maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+    let oldMaskCanvas = null;
+    if (!needsInit) {
+      oldMaskCanvas = document.createElement('canvas');
+      oldMaskCanvas.width = maskCanvas.width;
+      oldMaskCanvas.height = maskCanvas.height;
+      oldMaskCanvas.getContext('2d').drawImage(maskCanvas, 0, 0);
+    }
     maskCanvas.width = W * devicePixelRatio;
     maskCanvas.height = H * devicePixelRatio;
     maskCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
 
     generatePattern();
 
-    if (oldMask) {
-      maskCtx.putImageData(oldMask, 0, 0);
+    if (oldMaskCanvas) {
+      maskCtx.drawImage(oldMaskCanvas, 0, 0, oldMaskCanvas.width, oldMaskCanvas.height, 0, 0, W, H);
     } else {
       initMask();
     }
@@ -422,10 +428,10 @@
 
   function updatePhysics(dt) {
     const step = Math.min(dt, 0.033);
-    driftPhaseX += step * 0.7;
-    driftPhaseY += step * 0.5;
-    velX += Math.sin(driftPhaseX) * 0.003;
-    velY += Math.cos(driftPhaseY) * 0.0025;
+    driftPhaseX += step * 0.35;
+    driftPhaseY += step * 0.25;
+    velX += Math.sin(driftPhaseX) * 0.002;
+    velY += Math.cos(driftPhaseY) * 0.0016;
     velX += -gravityX * angleX * step;
     velY += -gravityY * angleY * step;
     velX *= Math.pow(damping, step * 60);
