@@ -379,8 +379,8 @@
   function resize() {
     CW = window.innerWidth;
     CH = window.innerHeight;
-    // Board is about 40% of viewport
-    const aspect = 4 / 3;
+    const portrait = CW < CH;
+    const aspect = portrait ? 3 / 4 : 4 / 3;
     const targetW = CW * 0.75;
     const targetH = targetW / aspect;
     if (targetH > CH * 0.75) {
