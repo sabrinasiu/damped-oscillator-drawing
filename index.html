@@ -285,7 +285,7 @@
 
   // Bounce physics with drift
   let boardX = 0, boardY = 0;
-  let bvx = 1.5, bvy = 1.0;
+  let bvx = 1.5, bvy = (typeof window !== 'undefined' && window.innerWidth < window.innerHeight) ? 1.8 : 1.0;
   let curvature = 0;
   let curvePhase = Math.random() * Math.PI * 2;
   let wavePhaseX = Math.random() * Math.PI * 2;
@@ -458,8 +458,9 @@
     // Sinusoidal wobble on both axes
     wavePhaseX += step * 1.7;
     wavePhaseY += step * 2.3;
-    const wobbleX = Math.sin(wavePhaseX) * 30 * step;
-    const wobbleY = Math.sin(wavePhaseY) * 25 * step;
+    const portrait = CW < CH;
+    const wobbleX = Math.sin(wavePhaseX) * (portrait ? 20 : 30) * step;
+    const wobbleY = Math.sin(wavePhaseY) * (portrait ? 50 : 25) * step;
 
     boardX += bvx * speed * step + wobbleX;
     boardY += bvy * speed * step + wobbleY;
