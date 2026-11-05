@@ -79,7 +79,7 @@
 
   canvas#board {
     border-radius: 6px;
-    cursor: crosshair;
+    cursor: grab;
     touch-action: none;
   }
 
@@ -203,7 +203,7 @@
   <button class="action-btn" id="clearBtn">Clear</button>
 </div>
 
-<div class="hint">Push a corner to swing the board, then click &amp; hold to draw</div>
+<div class="hint">Move cursor over the board to push it, click &amp; hold to draw</div>
 
 <script>
 (function() {
@@ -353,6 +353,7 @@
   function onPointerDown(e) {
     if (e.button !== 0) return;
     isDrawing = true;
+    canvas.style.cursor = 'crosshair';
     canvas.setPointerCapture(e.pointerId);
     penScreenX = e.clientX;
     penScreenY = e.clientY;
@@ -373,6 +374,7 @@
 
   function onPointerUp(e) {
     isDrawing = false;
+    canvas.style.cursor = 'grab';
     lastDrawX = null;
     lastDrawY = null;
   }
@@ -426,21 +428,29 @@
     const dt = (now - lastTime) / 1000;
     lastTime = now;
 
-    const offBefore = boardOffset();
+    // Cursor push: when cursor overlaps the board (without clicking), push it away
+    if (!isDrawing && penScreenX !== 0) {
+      const rect = canvas.getBoundingClientRect();
+      const off = boardOffset();
+      const bx = penScreenX - rect.left - off.x;
+      const by = penScreenY - rect.top - off.y;
+      if (bx >= 0 && bx <= W && by >= 0 && by <= H) {
+        // Cursor is inside the board — push away from cursor position
+        const cx = bx / W - 0.5; // -0.5 to 0.5
+        const cy = by / H - 0.5;
+        const pushStrength = 0.008;
+        velX += cx * pushStrength;
+        velY += cy * pushStrength;
+      }
+    }
+
     updatePhysics(dt);
     const offAfter = boardOffset();
 
-    // The board moved, so in board-local coords the pen shifted by the opposite
     if (isDrawing && lastDrawX !== null) {
-      const shiftX = offBefore.x - offAfter.x;
-      const shiftY = offBefore.y - offAfter.y;
-      const newX = lastDrawX + shiftX;
-      const newY = lastDrawY + shiftY;
-      // Also account for cursor movement in screen space
       const rect = canvas.getBoundingClientRect();
       const cursorBoardX = penScreenX - rect.left - offAfter.x;
       const cursorBoardY = penScreenY - rect.top - offAfter.y;
-      // Blend: use cursor board-local position (accounts for both board motion and cursor motion)
       drawLine(lastDrawX, lastDrawY, cursorBoardX, cursorBoardY);
       lastDrawX = cursorBoardX;
       lastDrawY = cursorBoardY;
