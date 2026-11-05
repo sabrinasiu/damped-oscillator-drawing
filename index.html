@@ -569,7 +569,7 @@
       const txtY = hr.top - cr.top;
       const fg = getComputedStyle(document.documentElement).getPropertyValue('--fg').trim();
 
-      // Create text stamp canvas (white text on transparent)
+      // Render text stamp ONCE with fg color
       if (!textStamp) {
         textStamp = document.createElement('canvas');
         textStampCtx = textStamp.getContext('2d');
@@ -578,16 +578,16 @@
       textStamp.height = CH * devicePixelRatio;
       textStampCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
       textStampCtx.font = `700 ${fs}px 'DM Sans', sans-serif`;
-      textStampCtx.fillStyle = '#fff';
+      textStampCtx.fillStyle = fg;
       textStampCtx.fillText('PENDULOOM', txtX, txtY + fs * 0.82);
 
-      // 1) Cut text shape out of board
+      // 1) Cut text shape out of board (any opaque pixel cuts)
       ctx.save();
       ctx.globalCompositeOperation = 'destination-out';
       ctx.drawImage(textStamp, 0, 0, textStamp.width, textStamp.height, 0, 0, CW, CH);
       ctx.restore();
 
-      // 2) Fill pattern into the holes (only where board was)
+      // 2) Fill pattern into the holes (only where board overlaps)
       ctx.save();
       ctx.globalCompositeOperation = 'destination-over';
       ctx.translate(off.x, off.y);
@@ -597,11 +597,7 @@
       ctx.drawImage(patternCanvas, 0, 0, patternCanvas.width, patternCanvas.height, 0, 0, W, H);
       ctx.restore();
 
-      // 3) Draw normal text behind (visible where no board)
-      textStampCtx.clearRect(0, 0, CW, CH);
-      textStampCtx.font = `700 ${fs}px 'DM Sans', sans-serif`;
-      textStampCtx.fillStyle = fg;
-      textStampCtx.fillText('PENDULOOM', txtX, txtY + fs * 0.82);
+      // 3) Same stamp behind everything (visible where no board)
       ctx.save();
       ctx.globalCompositeOperation = 'destination-over';
       ctx.drawImage(textStamp, 0, 0, textStamp.width, textStamp.height, 0, 0, CW, CH);
