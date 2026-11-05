@@ -70,14 +70,9 @@
   }
 
   .canvas-wrap {
-    position: relative;
-    flex: 1 1 0;
-    min-height: 0;
-    width: 100%;
-    max-width: 800px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position: fixed;
+    inset: 0;
+    z-index: 1;
   }
 
   canvas#board {
@@ -99,16 +94,28 @@
     background: var(--fg);
   }
   #cursor.hand {
-    width: 0; height: 0;
+    width: auto; height: auto;
     border: none;
-    background: none;
+    border-radius: 20px;
+    background: var(--fg);
+    color: var(--bg);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    padding: 6px 14px;
+    white-space: nowrap;
+    transform: translate(12px, 12px);
+  }
+  #cursor.hand::after {
+    content: 'click';
   }
   #cursor.dot {
     width: 8px; height: 8px;
     border: none;
     border-radius: 50%;
     background: var(--fg);
-    transform: translate(3px, -2px);
+    padding: 0;
+    transform: translate(-50%, -50%);
   }
 
   .controls {
@@ -218,6 +225,23 @@
     direction: rtl;
   }
 
+  .hero-text {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700;
+    font-size: clamp(60px, 15vw, 200px);
+    line-height: 0.85;
+    letter-spacing: -0.03em;
+    color: var(--fg);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    pointer-events: none;
+    z-index: 0;
+  }
+
   .hint {
     font-size: 11px;
     color: var(--muted);
@@ -229,23 +253,12 @@
 
 <div id="cursor" class="square"></div>
 <div class="header">Pendulum Board</div>
+<div class="hero-text">HARMONODRAW</div>
 
 <div class="canvas-wrap">
   <canvas id="board"></canvas>
 </div>
 
-<div class="controls">
-  <button class="help-btn" id="helpBtn" aria-label="Help">?</button>
-</div>
-
-<div class="modal-overlay" id="helpModal" hidden>
-  <div class="modal">
-    <h2>How to play</h2>
-    <p><strong>Grab a corner</strong> of the white board and drag to set it swinging.</p>
-    <p><strong>Click &amp; hold</strong> anywhere on the board to scratch away the surface and reveal the hidden image underneath.</p>
-    <button class="modal-close" id="closeHelp">Got it</button>
-  </div>
-</div>
 
 <script>
 (function() {
@@ -257,6 +270,7 @@
   let CW, CH;
   let patternCanvas, patternCtx;
   let maskCanvas, maskCtx;
+  let compCanvas, compCtx;
 
   // Board physics
   let angleX = 0, angleY = 0;
@@ -264,7 +278,7 @@
   const damping = 0.9988;
   const gravityX = 1.4;
   const gravityY = 2.1;
-  const maxAngle = 0.25;
+  const maxAngle = 0.6;
 
   // Pen state
   let penSize = 12;
@@ -365,19 +379,18 @@
   }
 
   function resize() {
-    const rect = wrap.getBoundingClientRect();
-    CW = Math.floor(Math.min(rect.width - 8, 800));
-    CH = Math.floor(rect.height - 8);
-    const maxSwingFrac = Math.sin(maxAngle) * 1.0;
+    CW = window.innerWidth;
+    CH = window.innerHeight;
+    // Board is about 40% of viewport
     const aspect = 4 / 3;
-    const fitW = CW / (1 + 2 * maxSwingFrac);
-    const fitH = CH / (1 + 2 * maxSwingFrac);
-    if (fitW / aspect <= fitH) {
-      W = Math.floor(fitW);
-      H = Math.floor(fitW / aspect);
+    const targetW = CW * 0.4;
+    const targetH = targetW / aspect;
+    if (targetH > CH * 0.4) {
+      H = Math.floor(CH * 0.4);
+      W = Math.floor(H * aspect);
     } else {
-      H = Math.floor(fitH);
-      W = Math.floor(fitH * aspect);
+      W = Math.floor(targetW);
+      H = Math.floor(targetH);
     }
 
     canvas.width = CW * devicePixelRatio;
@@ -417,8 +430,8 @@
     const restX = (CW - W) / 2;
     const restY = (CH - H) / 2;
     return {
-      x: restX + Math.sin(angleX) * W * 1.0,
-      y: restY + Math.sin(angleY) * H * 1.0
+      x: restX + Math.sin(angleX) * CW * 0.8,
+      y: restY + Math.sin(angleY) * CH * 0.8
     };
   }
 
@@ -491,8 +504,54 @@
     // Draw the hidden pattern
     ctx.drawImage(patternCanvas, 0, 0, patternCanvas.width, patternCanvas.height, 0, 0, W, H);
 
-    // Draw the mask (white overlay) on top — erased areas reveal pattern
-    ctx.drawImage(maskCanvas, 0, 0, maskCanvas.width, maskCanvas.height, 0, 0, W, H);
+    // Build composited mask: start with user's mask, then punch out text and cursor
+    if (!compCanvas) {
+      compCanvas = document.createElement('canvas');
+      compCtx = compCanvas.getContext('2d');
+    }
+    compCanvas.width = W * devicePixelRatio;
+    compCanvas.height = H * devicePixelRatio;
+    compCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    compCtx.drawImage(maskCanvas, 0, 0, maskCanvas.width, maskCanvas.height, 0, 0, W, H);
+
+    // Punch through text
+    const heroEl = document.querySelector('.hero-text');
+    if (heroEl) {
+      const heroRect = heroEl.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+      const textX = heroRect.left - canvasRect.left - off.x;
+      const textY = heroRect.top - canvasRect.top - off.y;
+      const fontSize = parseFloat(getComputedStyle(heroEl).fontSize);
+      compCtx.save();
+      compCtx.globalCompositeOperation = 'destination-out';
+      compCtx.font = `700 ${fontSize}px 'DM Sans', sans-serif`;
+      compCtx.letterSpacing = '-0.03em';
+      compCtx.fillStyle = 'rgba(255,255,255,1)';
+      compCtx.fillText('HARMONODRAW', textX, textY + fontSize * 0.82);
+      compCtx.restore();
+    }
+
+    // Punch through cursor pill
+    if (!isDrawing && !isDragging && penScreenX !== 0) {
+      const canvasRect = canvas.getBoundingClientRect();
+      const cursorX = penScreenX - canvasRect.left - off.x + 12;
+      const cursorY = penScreenY - canvasRect.top - off.y + 12;
+      const bx = penScreenX - canvasRect.left - off.x;
+      const by = penScreenY - canvasRect.top - off.y;
+      if (bx >= -60 && bx <= W + 60 && by >= -60 && by <= H + 60) {
+        compCtx.save();
+        compCtx.globalCompositeOperation = 'destination-out';
+        compCtx.fillStyle = 'rgba(255,255,255,1)';
+        const pw = 64, ph = 24;
+        compCtx.beginPath();
+        compCtx.roundRect(cursorX, cursorY - ph / 2 + 2, pw, ph, 20);
+        compCtx.fill();
+        compCtx.restore();
+      }
+    }
+
+    // Draw composited mask on top of pattern
+    ctx.drawImage(compCanvas, 0, 0, compCanvas.width, compCanvas.height, 0, 0, W, H);
 
     ctx.restore();
   }
@@ -575,12 +634,12 @@
   function updateCursor() {
     if (isDragging) {
       cursorEl.className = 'dot';
-      canvas.style.cursor = 'grabbing';
+      canvas.style.cursor = 'none';
       return;
     }
     if (isDrawing) {
       cursorEl.className = 'dot';
-      canvas.style.cursor = 'pointer';
+      canvas.style.cursor = 'none';
       return;
     }
     const rect = canvas.getBoundingClientRect();
@@ -589,17 +648,12 @@
     const by = penScreenY - rect.top - off.y;
     if (bx >= 0 && bx <= W && by >= 0 && by <= H) {
       cursorEl.className = 'hand';
-      canvas.style.cursor = 'grab';
+      canvas.style.cursor = 'none';
     } else {
       cursorEl.className = 'square';
       canvas.style.cursor = 'none';
     }
   }
-
-  const helpModal = document.getElementById('helpModal');
-  document.getElementById('helpBtn').addEventListener('click', () => { helpModal.hidden = false; });
-  document.getElementById('closeHelp').addEventListener('click', () => { helpModal.hidden = true; });
-  helpModal.addEventListener('click', (e) => { if (e.target === helpModal) helpModal.hidden = true; });
 
   // Main loop
   let lastTime = performance.now();
