@@ -227,14 +227,14 @@
     right: max(16px, env(safe-area-inset-right, 0px));
     font-family: 'DM Sans', sans-serif;
     font-weight: 700;
-    font-size: 13vw;
+    font-size: 1px;
     line-height: 1;
     letter-spacing: -0.03em;
+    width: calc(100vw - max(16px, env(safe-area-inset-left, 0px)) - max(16px, env(safe-area-inset-right, 0px)));
     color: var(--fg);
     pointer-events: none;
     z-index: 0;
     white-space: nowrap;
-    overflow: hidden;
   }
 
   .hint {
@@ -255,6 +255,21 @@
 
 
 <script>
+(function fitHeroText() {
+  const el = document.querySelector('.hero-text');
+  function fit() {
+    let size = 10;
+    el.style.fontSize = size + 'px';
+    while (el.scrollWidth <= el.clientWidth && size < 500) {
+      size += 2;
+      el.style.fontSize = size + 'px';
+    }
+    el.style.fontSize = (size - 2) + 'px';
+  }
+  fit();
+  window.addEventListener('resize', fit);
+})();
+
 (function() {
   const canvas = document.getElementById('board');
   const ctx = canvas.getContext('2d');
@@ -406,10 +421,9 @@
 
     generatePattern();
 
+    initMask();
     if (oldMaskCanvas) {
       maskCtx.drawImage(oldMaskCanvas, 0, 0, oldMaskCanvas.width, oldMaskCanvas.height, 0, 0, W, H);
-    } else {
-      initMask();
     }
   }
 
@@ -430,8 +444,8 @@
     const step = Math.min(dt, 0.033);
     driftPhaseX += step * 0.35;
     driftPhaseY += step * 0.25;
-    velX += Math.sin(driftPhaseX) * 0.002;
-    velY += Math.cos(driftPhaseY) * 0.0016;
+    velX += Math.sin(driftPhaseX) * 0.006;
+    velY += Math.cos(driftPhaseY) * 0.005;
     velX += -gravityX * angleX * step;
     velY += -gravityY * angleY * step;
     velX *= Math.pow(damping, step * 60);
