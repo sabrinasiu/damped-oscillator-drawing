@@ -1,0 +1,457 @@
+<title>Pendulum Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap">
+<style>
+  /* Layout: full-screen app, board centered, controls docked bottom */
+  :root {
+    --bg: #0a0a0f;
+    --fg: #e8e6e1;
+    --surface: #16161e;
+    --border: #2a2a35;
+    --accent: #5b8def;
+    --muted: #6b6b7b;
+    --board-bg: #f5f3ee;
+    --board-shadow: rgba(0,0,0,0.4);
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f0eeea;
+      --fg: #1a1a1f;
+      --surface: #ffffff;
+      --border: #d8d5ce;
+      --accent: #3d6fd6;
+      --muted: #8a8a95;
+      --board-bg: #ffffff;
+      --board-shadow: rgba(0,0,0,0.15);
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f0eeea;
+    --fg: #1a1a1f;
+    --surface: #ffffff;
+    --border: #d8d5ce;
+    --accent: #3d6fd6;
+    --muted: #8a8a95;
+    --board-bg: #ffffff;
+    --board-shadow: rgba(0,0,0,0.15);
+    color-scheme: light;
+  }
+
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'DM Sans', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 12px;
+    gap: 12px;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .header {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .canvas-wrap {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
+    width: 100%;
+    max-width: 700px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  canvas#board {
+    border-radius: 6px;
+    cursor: crosshair;
+    touch-action: none;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    max-width: 700px;
+    width: 100%;
+  }
+
+  .color-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.15s;
+    padding: 0;
+    outline: none;
+  }
+  .color-btn:hover { transform: scale(1.15); }
+  .color-btn.active { border-color: var(--fg); transform: scale(1.15); }
+  .color-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .corner-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    margin-left: 8px;
+  }
+
+  .corner-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--fg);
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .corner-btn:hover { background: var(--accent); color: #fff; }
+  .corner-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .action-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    padding: 6px 14px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--fg);
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-left: auto;
+  }
+  .action-btn:hover { background: var(--accent); color: #fff; }
+  .action-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .pen-size {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+  .pen-size input[type="range"] {
+    width: 60px;
+    accent-color: var(--accent);
+  }
+
+  .hint {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 0.03em;
+  }
+
+  @media (max-width: 500px) {
+    .controls { gap: 6px; }
+    .action-btn { margin-left: 0; }
+  }
+</style>
+
+<div class="header">Pendulum Board</div>
+
+<div class="canvas-wrap">
+  <canvas id="board"></canvas>
+</div>
+
+<div class="controls">
+  <button class="color-btn active" style="background:#1a1a1f" data-color="#1a1a1f" aria-label="Black"></button>
+  <button class="color-btn" style="background:#d94040" data-color="#d94040" aria-label="Red"></button>
+  <button class="color-btn" style="background:#3d6fd6" data-color="#3d6fd6" aria-label="Blue"></button>
+  <button class="color-btn" style="background:#2ea85a" data-color="#2ea85a" aria-label="Green"></button>
+  <button class="color-btn" style="background:#d9a020" data-color="#d9a020" aria-label="Gold"></button>
+  <button class="color-btn" style="background:#8b45c6" data-color="#8b45c6" aria-label="Purple"></button>
+
+  <div class="pen-size">
+    <label for="penSize">PEN</label>
+    <input type="range" id="penSize" min="1" max="8" value="2">
+  </div>
+
+  <div class="corner-btns">
+    <button class="corner-btn" data-corner="tl">&#8598; Top-L</button>
+    <button class="corner-btn" data-corner="tr">&#8599; Top-R</button>
+    <button class="corner-btn" data-corner="bl">&#8601; Bot-L</button>
+    <button class="corner-btn" data-corner="br">&#8600; Bot-R</button>
+  </div>
+
+  <button class="action-btn" id="clearBtn">Clear</button>
+</div>
+
+<div class="hint">Push a corner to swing the board, then click &amp; hold to draw</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const wrap = canvas.parentElement;
+
+  let W, H;       // board dimensions
+  let CW, CH;     // canvas dimensions (larger, to fit swing)
+  let drawingCanvas, drawCtx;
+
+  // Board physics: 2D damped pendulum
+  let angleX = 0, angleY = 0;
+  let velX = 0, velY = 0;
+  const damping = 0.9988;
+  const gravityX = 1.4;
+  const gravityY = 2.1;
+  const maxAngle = 0.25;
+
+  // Pen state
+  let penColor = '#1a1a1f';
+  let penSize = 2;
+  let isDrawing = false;
+  let lastDrawX = null, lastDrawY = null;
+
+  function resize() {
+    const rect = wrap.getBoundingClientRect();
+    // Canvas fills the available space
+    CW = Math.floor(Math.min(rect.width - 8, 800));
+    CH = Math.floor(rect.height - 8);
+    // Board is smaller — leave room for max swing on each side
+    const maxSwingX = Math.sin(maxAngle) * 1.0; // fraction of W
+    const maxSwingY = Math.sin(maxAngle) * 1.0; // fraction of H
+    // W + 2 * maxSwingX * W <= CW  =>  W * (1 + 2*maxSwingX) <= CW
+    const aspect = 4 / 3;
+    const fitW = CW / (1 + 2 * maxSwingX);
+    const fitH = CH / (1 + 2 * maxSwingY);
+    if (fitW / aspect <= fitH) {
+      W = Math.floor(fitW);
+      H = Math.floor(fitW / aspect);
+    } else {
+      H = Math.floor(fitH);
+      W = Math.floor(fitH * aspect);
+    }
+
+    canvas.width = CW * devicePixelRatio;
+    canvas.height = CH * devicePixelRatio;
+    canvas.style.width = CW + 'px';
+    canvas.style.height = CH + 'px';
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+
+    if (!drawingCanvas) {
+      drawingCanvas = document.createElement('canvas');
+      drawCtx = drawingCanvas.getContext('2d');
+    }
+    const oldImg = drawCtx.getImageData(0, 0, drawingCanvas.width, drawingCanvas.height);
+    drawingCanvas.width = W * devicePixelRatio;
+    drawingCanvas.height = H * devicePixelRatio;
+    drawCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    drawCtx.putImageData(oldImg, 0, 0);
+  }
+
+  // Board's top-left position on the canvas (centered at rest, offset by swing)
+  function boardOffset() {
+    const restX = (CW - W) / 2;
+    const restY = (CH - H) / 2;
+    return {
+      x: restX + Math.sin(angleX) * W * 1.0,
+      y: restY + Math.sin(angleY) * H * 1.0
+    };
+  }
+
+  function pushCorner(corner) {
+    switch(corner) {
+      case 'tl': velX -= 0.18; velY -= 0.12; break;
+      case 'tr': velX += 0.18; velY -= 0.12; break;
+      case 'bl': velX -= 0.12; velY += 0.18; break;
+      case 'br': velX += 0.12; velY += 0.18; break;
+    }
+  }
+
+  function updatePhysics(dt) {
+    const step = Math.min(dt, 0.033);
+    velX += -gravityX * angleX * step;
+    velY += -gravityY * angleY * step;
+    velX *= Math.pow(damping, step * 60);
+    velY *= Math.pow(damping, step * 60);
+    angleX += velX * step;
+    angleY += velY * step;
+    angleX = Math.max(-maxAngle, Math.min(maxAngle, angleX));
+    angleY = Math.max(-maxAngle, Math.min(maxAngle, angleY));
+  }
+
+  // Convert page coords to board-local coords (accounting for board offset)
+  function pageToBoardLocal(px, py) {
+    const rect = canvas.getBoundingClientRect();
+    const canvasX = px - rect.left;
+    const canvasY = py - rect.top;
+    const off = boardOffset();
+    return { x: canvasX - off.x, y: canvasY - off.y };
+  }
+
+  function drawLine(x0, y0, x1, y1) {
+    drawCtx.strokeStyle = penColor;
+    drawCtx.lineWidth = penSize;
+    drawCtx.lineCap = 'round';
+    drawCtx.lineJoin = 'round';
+    drawCtx.beginPath();
+    drawCtx.moveTo(x0, y0);
+    drawCtx.lineTo(x1, y1);
+    drawCtx.stroke();
+  }
+
+  function render() {
+    const boardBg = getComputedStyle(document.documentElement).getPropertyValue('--board-bg').trim();
+    ctx.clearRect(0, 0, CW, CH);
+
+    const off = boardOffset();
+
+    // Draw board shifted by pendulum offset (no clipping — full board always visible)
+    ctx.save();
+    ctx.translate(off.x, off.y);
+    ctx.fillStyle = boardBg;
+    ctx.beginPath();
+    ctx.roundRect(0, 0, W, H, 12);
+    ctx.fill();
+    ctx.clip();
+
+    // Draw the user's drawing on the board
+    ctx.drawImage(drawingCanvas, 0, 0, drawingCanvas.width, drawingCanvas.height, 0, 0, W, H);
+
+    // Subtle grid
+    ctx.strokeStyle = 'rgba(128,128,128,0.07)';
+    ctx.lineWidth = 0.5;
+    for (let x = 0; x < W; x += 40) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (let y = 0; y < H; y += 40) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+
+    ctx.restore();
+
+  }
+
+  // Pen interaction
+  function onPointerDown(e) {
+    if (e.button !== 0) return;
+    isDrawing = true;
+    canvas.setPointerCapture(e.pointerId);
+    penScreenX = e.clientX;
+    penScreenY = e.clientY;
+    const rect = canvas.getBoundingClientRect();
+    const off = boardOffset();
+    lastDrawX = penScreenX - rect.left - off.x;
+    lastDrawY = penScreenY - rect.top - off.y;
+    drawCtx.fillStyle = penColor;
+    drawCtx.beginPath();
+    drawCtx.arc(lastDrawX, lastDrawY, penSize / 2, 0, Math.PI * 2);
+    drawCtx.fill();
+  }
+
+  function onPointerMove(e) {
+    penScreenX = e.clientX;
+    penScreenY = e.clientY;
+  }
+
+  function onPointerUp(e) {
+    isDrawing = false;
+    lastDrawX = null;
+    lastDrawY = null;
+  }
+
+  // While drawing, the pen is stationary in screen space but the board moves,
+  // so we need to update drawing position each physics tick
+  function drawWhileSwinging() {
+    if (!isDrawing || lastDrawX === null) return;
+    // The pen hasn't moved in screen space, but the board has moved
+    // Recalculate where the pen is relative to the board
+    // We stored lastDrawX/Y in board-local coords at the previous frame
+    // The pen's screen position hasn't changed, but boardOffset changed
+    // So we need the pen's SCREEN position to recalc board-local
+  }
+
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointermove', onPointerMove);
+  canvas.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('pointercancel', onPointerUp);
+
+  let penScreenX = 0, penScreenY = 0;
+
+  // Color buttons
+  document.querySelectorAll('.color-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      penColor = btn.dataset.color;
+    });
+  });
+
+  // Corner push buttons
+  document.querySelectorAll('.corner-btn').forEach(btn => {
+    btn.addEventListener('click', () => pushCorner(btn.dataset.corner));
+  });
+
+  // Pen size
+  document.getElementById('penSize').addEventListener('input', e => {
+    penSize = parseInt(e.target.value);
+  });
+
+  // Clear
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    drawCtx.clearRect(0, 0, W, H);
+  });
+
+  // Main loop
+  let lastTime = performance.now();
+
+  function loop(now) {
+    const dt = (now - lastTime) / 1000;
+    lastTime = now;
+
+    const offBefore = boardOffset();
+    updatePhysics(dt);
+    const offAfter = boardOffset();
+
+    // The board moved, so in board-local coords the pen shifted by the opposite
+    if (isDrawing && lastDrawX !== null) {
+      const shiftX = offBefore.x - offAfter.x;
+      const shiftY = offBefore.y - offAfter.y;
+      const newX = lastDrawX + shiftX;
+      const newY = lastDrawY + shiftY;
+      // Also account for cursor movement in screen space
+      const rect = canvas.getBoundingClientRect();
+      const cursorBoardX = penScreenX - rect.left - offAfter.x;
+      const cursorBoardY = penScreenY - rect.top - offAfter.y;
+      // Blend: use cursor board-local position (accounts for both board motion and cursor motion)
+      drawLine(lastDrawX, lastDrawY, cursorBoardX, cursorBoardY);
+      lastDrawX = cursorBoardX;
+      lastDrawY = cursorBoardY;
+    }
+
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+  requestAnimationFrame(loop);
+})();
+</script>
