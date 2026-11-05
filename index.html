@@ -287,52 +287,48 @@
     ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
   }
 
+  const washColors = ['#3b5323', '#e36356', '#6b8fa3', '#d4c953'];
+
   function generatePattern() {
     if (currentImage) {
       drawImageCover(patternCtx, currentImage, W, H);
       return;
     }
-    // Fallback: generated abstract pattern
-    patternCtx.save();
-    const grad = patternCtx.createLinearGradient(0, 0, W, H);
-    grad.addColorStop(0, '#1a0533');
-    grad.addColorStop(0.3, '#0d1b3e');
-    grad.addColorStop(0.6, '#1a3a2a');
-    grad.addColorStop(1, '#3d1a1a');
-    patternCtx.fillStyle = grad;
+    // Generative color wash using the four palette colors
+    patternCtx.fillStyle = '#f4f1e8';
     patternCtx.fillRect(0, 0, W, H);
-    const colors = [
-      '#e84393', '#6c5ce7', '#00b894', '#fdcb6e',
-      '#e17055', '#74b9ff', '#a29bfe', '#55efc4',
-      '#ff6b6b', '#feca57', '#48dbfb', '#ff9ff3'
-    ];
-    for (let i = 0; i < 20; i++) {
+
+    // Large soft blobs
+    for (let i = 0; i < 14; i++) {
       const x = Math.random() * W;
       const y = Math.random() * H;
-      const r = 40 + Math.random() * 120;
+      const r = 60 + Math.random() * Math.min(W, H) * 0.5;
       const g = patternCtx.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(0, colors[i % colors.length]);
+      const c = washColors[i % 4];
+      g.addColorStop(0, c + '66');
+      g.addColorStop(0.5, c + '30');
       g.addColorStop(1, 'transparent');
       patternCtx.fillStyle = g;
       patternCtx.beginPath();
       patternCtx.arc(x, y, r, 0, Math.PI * 2);
       patternCtx.fill();
     }
-    for (let i = 0; i < 8; i++) {
-      patternCtx.strokeStyle = colors[(i * 3) % colors.length];
-      patternCtx.lineWidth = 2 + Math.random() * 4;
-      patternCtx.globalAlpha = 0.6;
+
+    // Second pass for depth
+    for (let i = 0; i < 20; i++) {
+      const x = Math.random() * W;
+      const y = Math.random() * H;
+      const r = 40 + Math.random() * Math.min(W, H) * 0.35;
+      const g = patternCtx.createRadialGradient(x, y, 0, x, y, r);
+      const c = washColors[Math.floor(Math.random() * 4)];
+      g.addColorStop(0, c + '44');
+      g.addColorStop(0.6, c + '18');
+      g.addColorStop(1, 'transparent');
+      patternCtx.fillStyle = g;
       patternCtx.beginPath();
-      let x = Math.random() * W, y = Math.random() * H;
-      patternCtx.moveTo(x, y);
-      for (let j = 0; j < 8; j++) {
-        x = Math.random() * W; y = Math.random() * H;
-        patternCtx.bezierCurveTo(Math.random()*W, Math.random()*H, Math.random()*W, Math.random()*H, x, y);
-      }
-      patternCtx.stroke();
+      patternCtx.arc(x, y, r, 0, Math.PI * 2);
+      patternCtx.fill();
     }
-    patternCtx.globalAlpha = 1;
-    patternCtx.restore();
   }
 
   function initMask() {
