@@ -361,33 +361,78 @@
 
   const washColors = ['#e84393', '#6c5ce7', '#00b894', '#fdcb6e', '#e17055', '#74b9ff'];
 
+  // Full-bleed color field in a muted soak-stain style: a warm, tinted
+  // canvas tone (never white) under overlapping translucent washes, so
+  // every pixel revealed has color. Painted once at low resolution, then
+  // scaled up smoothly so the edges of each wash stay soft.
+  let colorField = null;
+  const stainPalette = [
+    '#d9a84e', // ochre
+    '#d99a9a', // dusty rose
+    '#9fb89a', // sage
+    '#7fa2c4', // soft blue
+    '#cf7f5c', // terracotta
+    '#a493bb', // lilac
+    '#6fb0a8', // faded teal
+    '#e3c27a'  // pale gold
+  ];
+  function stainBlob(cx, x, y, r, color) {
+    const pts = 48;
+    const ph = Math.random() * Math.PI * 2;
+    const wob = 0.15 + Math.random() * 0.2;
+    const stretch = 0.6 + Math.random() * 0.9;
+    const rot = Math.random() * Math.PI;
+    cx.save();
+    cx.translate(x, y);
+    cx.rotate(rot);
+    cx.scale(stretch, 1);
+    cx.beginPath();
+    for (let i = 0; i <= pts; i++) {
+      const t = (i / pts) * Math.PI * 2;
+      const rr = r * (1 + wob * Math.sin(t * 2 + ph) * 0.7 + wob * Math.sin(t * 3 - ph * 1.7) * 0.3);
+      const px = Math.cos(t) * rr, py = Math.sin(t) * rr;
+      if (i === 0) cx.moveTo(px, py); else cx.lineTo(px, py);
+    }
+    cx.closePath();
+    cx.fillStyle = color;
+    cx.globalAlpha = 0.28 + Math.random() * 0.2;
+    cx.fill();
+    // Slightly darker rim, like pigment pooling at the edge of a stain
+    cx.globalAlpha = 0.18;
+    cx.lineWidth = 1;
+    cx.strokeStyle = color;
+    cx.stroke();
+    cx.restore();
+  }
+  function buildColorField() {
+    const fw = 160, fh = 120;
+    const c = document.createElement('canvas');
+    c.width = fw; c.height = fh;
+    const cx = c.getContext('2d');
+    // Tinted canvas ground: warm, mid-light, never white
+    const g = cx.createLinearGradient(0, 0, fw, fh);
+    g.addColorStop(0, '#e6d8bc');
+    g.addColorStop(1, '#dccdaf');
+    cx.fillStyle = g;
+    cx.fillRect(0, 0, fw, fh);
+    // Big washes first, then smaller ones layered on top
+    // Soften edges like pigment bleeding into raw canvas (ignored where unsupported)
+    cx.filter = 'blur(1.2px)';
+    for (let i = 0; i < 9; i++) {
+      const big = i < 4;
+      const r = (big ? 0.28 : 0.12) * fw + Math.random() * (big ? 0.18 : 0.12) * fw;
+      const color = stainPalette[Math.floor(Math.random() * stainPalette.length)];
+      stainBlob(cx, Math.random() * fw, Math.random() * fh, r, color);
+    }
+    cx.filter = 'none';
+    cx.globalAlpha = 1;
+    return c;
+  }
   function generatePattern() {
-    if (currentImage) {
-      drawImageCover(patternCtx, currentImage, W, H);
-      return;
-    }
-    // Vivid generative pattern
-    const grad = patternCtx.createLinearGradient(0, 0, W, H);
-    grad.addColorStop(0, '#1a0533');
-    grad.addColorStop(0.5, '#0d1b3e');
-    grad.addColorStop(1, '#1a3a2a');
-    patternCtx.fillStyle = grad;
-    patternCtx.fillRect(0, 0, W, H);
-
-    for (let i = 0; i < 25; i++) {
-      const x = Math.random() * W;
-      const y = Math.random() * H;
-      const r = 40 + Math.random() * Math.min(W, H) * 0.4;
-      const g = patternCtx.createRadialGradient(x, y, 0, x, y, r);
-      const c = washColors[i % washColors.length];
-      g.addColorStop(0, c + 'cc');
-      g.addColorStop(0.5, c + '55');
-      g.addColorStop(1, 'transparent');
-      patternCtx.fillStyle = g;
-      patternCtx.beginPath();
-      patternCtx.arc(x, y, r, 0, Math.PI * 2);
-      patternCtx.fill();
-    }
+    if (!colorField) colorField = buildColorField();
+    patternCtx.imageSmoothingEnabled = true;
+    patternCtx.imageSmoothingQuality = 'high';
+    patternCtx.drawImage(colorField, 0, 0, W, H);
   }
 
   function initMask() {
@@ -460,39 +505,55 @@
     return { x: boardX, y: boardY };
   }
 
+  // Smoothed motion: (bvx, bvy) is the direction the board wants to go;
+  // (vx, vy) is its actual velocity, which eases toward that direction
+  // over EASE seconds. Near an edge the wanted direction flips early, so
+  // the board decelerates and curves away instead of snapping off the wall.
+  let vx = 0, vy = 0;
+  const EASE = 0.9;          // seconds to settle into a new direction (higher = softer)
+  const SPEED = 0.06;        // fraction of the screen's long side per second
   function updatePhysics(dt) {
     const step = Math.min(dt, 0.033);
-    const speed = Math.max(CW, CH) * 0.12;
+    const speed = Math.max(CW, CH) * SPEED;
 
-    // Gentle rotation of velocity vector for curved paths
-    curvePhase += step * 0.4;
-    curvature = Math.sin(curvePhase) * 0.3 * step;
+    // Gentle rotation of the wanted direction for curved paths
+    curvePhase += step * 0.25;
+    curvature = Math.sin(curvePhase) * 0.25 * step;
     const cos = Math.cos(curvature), sin = Math.sin(curvature);
     const nvx = bvx * cos - bvy * sin;
     const nvy = bvx * sin + bvy * cos;
     bvx = nvx;
     bvy = nvy;
-
-    // Keep speed consistent
     const mag = Math.sqrt(bvx * bvx + bvy * bvy);
     if (mag > 0.01) { bvx /= mag; bvy /= mag; }
 
-    // Sinusoidal wobble on both axes
-    wavePhaseX += step * 1.7;
-    wavePhaseY += step * 2.3;
+    // Turn around before the wall: the margin is roughly the distance
+    // needed to ease to a stop, so the turn happens in open space.
+    const margin = speed * EASE * 0.6;
+    if (boardX < margin && bvx < 0) bvx = Math.abs(bvx);
+    if (boardX + W > CW - margin && bvx > 0) bvx = -Math.abs(bvx);
+    if (boardY < margin && bvy < 0) bvy = Math.abs(bvy);
+    if (boardY + H > CH - margin && bvy > 0) bvy = -Math.abs(bvy);
+
+    // Ease actual velocity toward the wanted velocity (frame-rate independent)
+    const k = 1 - Math.exp(-step / EASE);
+    vx += (bvx * speed - vx) * k;
+    vy += (bvy * speed - vy) * k;
+
+    // Slow, low sinusoidal drift on both axes
+    wavePhaseX += step * 0.7;
+    wavePhaseY += step * 0.95;
     const portrait = CW < CH;
-    const vScale = Math.max(CW, CH) * 0.03;
+    const vScale = Math.max(CW, CH) * 0.02;
     const wobbleX = Math.sin(wavePhaseX) * vScale * (portrait ? 0.7 : 1) * step;
     const wobbleY = Math.sin(wavePhaseY) * vScale * (portrait ? 1.7 : 0.8) * step;
 
-    boardX += bvx * speed * step + wobbleX;
-    boardY += bvy * speed * step + wobbleY;
+    boardX += vx * step + wobbleX;
+    boardY += vy * step + wobbleY;
 
-    // Bounce off edges with slight angle variation
-    if (boardX <= 0) { boardX = 0; bvx = Math.abs(bvx); bvy += (Math.random() - 0.5) * 0.3; }
-    if (boardX + W >= CW) { boardX = CW - W; bvx = -Math.abs(bvx); bvy += (Math.random() - 0.5) * 0.3; }
-    if (boardY <= 0) { boardY = 0; bvy = Math.abs(bvy); bvx += (Math.random() - 0.5) * 0.3; }
-    if (boardY + H >= CH) { boardY = CH - H; bvy = -Math.abs(bvy); bvx += (Math.random() - 0.5) * 0.3; }
+    // Safety: never leave the screen (e.g. after a resize)
+    boardX = Math.max(0, Math.min(boardX, CW - W));
+    boardY = Math.max(0, Math.min(boardY, CH - H));
   }
 
   function eraseMask(x0, y0, x1, y1) {
@@ -684,6 +745,8 @@
       isDragging = true;
       bvx = 0;
       bvy = 0;
+      vx = 0;
+      vy = 0;
       track('board_drag');
     } else {
       isDrawing = true;
@@ -713,6 +776,12 @@
       const mag = Math.sqrt(bvx * bvx + bvy * bvy);
       if (mag > 0.1) { bvx /= mag; bvy /= mag; }
       else { bvx = 1.2; bvy = 0.8; }
+      // Carry some of the throw into the actual velocity (capped), then ease
+      {
+        const cap = Math.max(CW, CH) * SPEED * 2;
+        vx = Math.max(-cap, Math.min(cap, cursorVelX * 60 * 0.5));
+        vy = Math.max(-cap, Math.min(cap, cursorVelY * 60 * 0.5));
+      }
       isDragging = false;
     }
     isDrawing = false;
@@ -736,6 +805,8 @@
       isDragging = true;
       bvx = 0;
       bvy = 0;
+      vx = 0;
+      vy = 0;
       track('board_drag');
       twoFingerStart = {
         x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
@@ -826,8 +897,8 @@
   }
 
   async function init() {
-    await loadManifest();
-    currentImage = await loadRandomImage();
+    // Screenshot images (images/manifest.json) are no longer used as the
+    // reveal layer; generatePattern() paints a full color field instead.
     resize();
     initBoardPos();
     window.addEventListener('resize', resize);
